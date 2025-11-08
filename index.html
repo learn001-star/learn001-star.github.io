@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Countdown Message</title>
+  <style>
+    :root {
+      --bg: #0f172a;        /* slate-900 */
+      --card: #111827;      /* gray-900 */
+      --text: #e5e7eb;      /* gray-200 */
+      --muted: #9ca3af;     /* gray-400 */
+      --accent: #38bdf8;    /* sky-400 */
+    }
+    html,body{height:100%}
+    body{
+      margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: var(--bg); color: var(--text);
+      display:grid; place-items:center; padding:24px;
+    }
+    .wrap{ width:min(900px, 96vw); }
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px; padding: 28px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+      backdrop-filter: blur(6px);
+    }
+    .title{ display:flex; align-items:center; gap:12px; margin:0 0 8px 0; font-weight:700; letter-spacing:.3px; }
+    .dot{ width:10px; height:10px; border-radius:999px; background: var(--accent); box-shadow:0 0 24px var(--accent); }
+    .count{
+      font-size: clamp(40px, 9vw, 84px);
+      line-height:1.05; font-weight: 800; margin: 8px 0 6px 0;
+    }
+    .sub{ color: var(--muted); margin: 0 0 18px 0; font-size: clamp(14px, 2.4vw, 16px); }
+    .message{ font-size: clamp(18px, 2.8vw, 20px); line-height:1.6; white-space: pre-wrap; }
+    .meta{ margin-top:20px; color: var(--muted); font-size: 14px; display:flex; gap:12px; flex-wrap:wrap; }
+    .meta code{ background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 8px; }
+    .footer{ margin-top: 18px; color: var(--muted); font-size: 12px; opacity:.85 }
+    .hidden{ display:none }
+    .btn{ display:inline-block; border-radius: 12px; border:1px solid rgba(255,255,255,0.12); padding:10px 14px; text-decoration:none; color:var(--text) }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1 class="title"><span class="dot"></span><span id="pageTitle">Message</span></h1>
+      <div class="count" id="bigCount">—</div>
+      <p class="sub" id="smallTimer">—</p>
+      <div class="message" id="msg">Your message appears here.</div>
+      <div class="meta" id="meta">
+        <div>Expires: <code id="deadlineText">—</code></div>
+        <div id="viewsWrap" class="hidden">View: <a class="btn" id="toggleView" href="#">toggle</a></div>
+      </div>
+      <div class="footer" id="footer">Share this link. The page auto‑updates and expires automatically.</div>
+    </div>
+  </div>
+
+  <script>
+    // Utility: parse query parameters
+    const Q = new URLSearchParams(location.search);
+
+    // Config via URL params
+    // ?msg=Hello%20World
+    // ?days=96   (expires N days from now)
+    // or ?expires=2026-02-01T00:00:00+05:30  (ISO timestamp; timezone allowed)
+    // Optional: ?title=Your%20Title
+    // Optional: ?style=light  (default: dark)
+    // Optional: ?bg=0f172a&text=e5e7eb&accent=38bdf8 (hex without '#')
+    // Optional: ?view=days or dhms (default: days)
+    // Optional: ?hideFooter=1
+
+    function hexOrDefault(v, d){ return /^([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v||"") ? `#${v}` : d }
+
+    // Theme
+    const style = (Q.get('style')||'dark').toLowerCase();
+    if(style === 'light'){
+      document.documentElement.style.setProperty('--bg', '#f8fafc'); // slate-50
+      document.documentElement.style.setProperty('--card', '#ffffff');
+      document.documentElement.style.setProperty('--text', '#0f172a');
+      document.documentElement.style.setProperty('--muted', '#475569');
+      document.documentElement.style.setProperty('--accent', '#0284c7');
+    }
+    // Custom colors
+    const bg = hexOrDefault(Q.get('bg'), null);
+    const text = hexOrDefault(Q.get('text'), null);
+    const accent = hexOrDefault(Q.get('accent'), null);
+    if(bg) document.documentElement.style.setProperty('--bg', bg);
+    if(text) document.documentElement.style.setProperty('--text', text);
+    if(accent){
+      document.documentElement.style.setProperty('--accent', accent);
+      document.querySelectorAll('.dot').forEach(el=>{
+        el.style.background = `var(--accent)`;
+        el.style.boxShadow = `0 0 24px var(--accent)`;
+      });
+    }
+
+    const title = Q.get('title') || 'Message';
+    document.getElementById('pageTitle').textContent = title;
+
+    const msg = (Q.get('msg') || 'Your message appears here.').replace(/\+/g, ' ');
+    document.getElementById('msg').textContent = msg;
+
+    // Determine deadline
+    let deadline;
+    if(Q.has('expires')){
+      const d = new Date(Q.get('expires'));
+      if(!isNaN(d)) deadline = d;
+    }
+    if(!deadline && Q.has('days')){
+      const n = parseFloat(Q.get('days'));
+      if(!isNaN(n)){
+        deadline = new Date(Date.now() + n*24*60*60*1000);
+      }
+    }
+    if(!deadline){
+      // Default: 30 days from now
+      deadline = new Date(Date.now() + 30*24*60*60*1000);
+    }
+
+    const viewModeDefault = (Q.get('view')||'days').toLowerCase(); // 'days' or 'dhms'
+    let viewMode = (viewModeDefault === 'dhms') ? 'dhms' : 'days';
+
+    // Footer toggle
+    if(Q.get('hideFooter') === '1'){
+      document.getElementById('footer').classList.add('hidden');
+    }
+
+    // Formatters
+    const fmtDate = new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeStyle: 'long' });
+    function diffParts(to){
+      const ms = Math.max(0, to - Date.now());
+      const s = Math.floor(ms/1000);
+      const days = Math.floor(s / 86400);
+      const hours = Math.floor((s % 86400)/3600);
+      const minutes = Math.floor((s % 3600)/60);
+      const seconds = s % 60;
+      return {ms, s, days, hours, minutes, seconds};
+    }
+
+    function render(){
+      const p = diffParts(deadline);
+      // Big count line
+      if(viewMode === 'days'){
+        const label = p.days === 1 ? 'day' : 'days';
+        document.getElementById('bigCount').textContent = `${p.days} ${label} left`;
+        document.getElementById('smallTimer').textContent = `${String(p.hours).padStart(2,'0')}:${String(p.minutes).padStart(2,'0')}:${String(p.seconds).padStart(2,'0')} remaining today`;
+      } else {
+        // DHMS mode in big line
+        const dd = p.days.toString().padStart(2,'0');
+        const hh = p.hours.toString().padStart(2,'0');
+        const mm = p.minutes.toString().padStart(2,'0');
+        const ss = p.seconds.toString().padStart(2,'0');
+        document.getElementById('bigCount').textContent = `${dd}:${hh}:${mm}:${ss}`;
+        document.getElementById('smallTimer').textContent = `until expiry`;
+      }
+
+      // Metadata
+      document.getElementById('deadlineText').textContent = fmtDate.format(deadline);
+
+      // Toggle visibility when expired
+      if(p.ms <= 0){
+        document.getElementById('bigCount').textContent = 'Expired';
+        document.getElementById('smallTimer').textContent = '';
+        document.getElementById('footer').textContent = 'This link has expired.';
+        clearInterval(timer);
+      }
+    }
+
+    // View toggle button
+    const viewsWrap = document.getElementById('viewsWrap');
+    const toggleBtn = document.getElementById('toggleView');
+    viewsWrap.classList.remove('hidden');
+    toggleBtn.addEventListener('click', (e)=>{
+      e.preventDefault();
+      viewMode = (viewMode === 'days') ? 'dhms' : 'days';
+      render();
+    });
+
+    // Initial render + timer
+    render();
+    const timer = setInterval(render, 1000);
+
+    // Optional: update the document title live with the countdown
+    setInterval(()=>{
+      const p = diffParts(deadline);
+      document.title = (viewMode === 'days') ? `${p.days} day${p.days===1?'':'s'} left` : `${p.days}d ${p.hours}h ${p.minutes}m ${p.seconds}s`;
+    }, 1000);
+  </script>
+</body>
+</html>
