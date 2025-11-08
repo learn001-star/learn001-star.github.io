@@ -46,12 +46,12 @@
       <h1 class="title"><span class="dot"></span><span id="pageTitle">Message</span></h1>
       <div class="count" id="bigCount">—</div>
       <p class="sub" id="smallTimer">—</p>
-      <div class="message" id="msg">Your message appears here.</div>
+      <div class="message" id="msg">Have a Happy Life 🥰</div>
       <div class="meta" id="meta">
         <div>Expires: <code id="deadlineText">—</code></div>
         <div id="viewsWrap" class="hidden">View: <a class="btn" id="toggleView" href="#">toggle</a></div>
       </div>
-      <div class="footer" id="footer">Share this link. The page auto‑updates and expires automatically.</div>
+      <div class="footer" id="footer">See you soon 👻</div>
     </div>
   </div>
 
@@ -97,7 +97,7 @@
     const title = Q.get('title') || 'Message';
     document.getElementById('pageTitle').textContent = title;
 
-    const msg = (Q.get('msg') || 'Your message appears here.').replace(/\+/g, ' ');
+    const msg = (Q.get('msg') || 'Have a Happy Life 🥰').replace(/\+/g, ' ');
     document.getElementById('msg').textContent = msg;
 
     // Determine deadline
